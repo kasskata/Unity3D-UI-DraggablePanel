@@ -2,7 +2,7 @@
 Can drag easy and fast RectTransform with this component.
 
 ##Inspector
-![alt tag](https://i.gyazo.com/e643a49209832d2307815d26e8574d57.png)
+!(https://i.gyazo.com/e643a49209832d2307815d26e8574d57.png)
 
 ##Horizontal
 ![alt tag](https://i.gyazo.com/1036cbef438adf6c7cf809c775623a98.gif)
