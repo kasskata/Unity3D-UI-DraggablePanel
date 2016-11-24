@@ -12,32 +12,40 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
     public enum Position
     {
-        Finish, Start
+        Start, End
     }
 
+    [Header("Translate type")]
     public MovementType movement;
+
+    [Space(5)]
+    [Header("Borders")]
     public int startPosition;
     public int finishPosition;
-    public UnityEvent onUp;
-    public UnityEvent onDown;
 
+    [Space(5)]
+    [HideInInspector]
     public Position transformPosition;
 
-    private RectTransform objectToDrag;
+    [Space(5)]
+    public UnityEvent onUp;
+    public UnityEvent onDown;
+    
+    private RectTransform draggableObjectCache;
     private float lastDelta;
     private bool isDragging;
     private Vector2 newAnchoredPosition;
 
-    public RectTransform ObjectToDrag
+    public RectTransform DraggableObjectCache
     {
         get
         {
-            if (this.objectToDrag == null)
+            if (this.draggableObjectCache == null)
             {
-                this.objectToDrag = this.GetComponent<RectTransform>();
+                this.draggableObjectCache = this.GetComponent<RectTransform>();
             }
 
-            return this.objectToDrag;
+            return this.draggableObjectCache;
         }
     }
 
@@ -106,7 +114,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
         switch (this.transformPosition)
         {
-            case Position.Finish:
+            case Position.End:
                 GoUp();
                 break;
             case Position.Start:
@@ -130,12 +138,12 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
             switch (this.movement)
             {
                 case MovementType.Horizontal:
-                    position = this.ObjectToDrag.anchoredPosition.x;
+                    position = this.DraggableObjectCache.anchoredPosition.x;
                     this.newAnchoredPosition = new Vector2(delta, 0);
                     Translate();
                     break;
                 case MovementType.Vertical:
-                    position = this.ObjectToDrag.anchoredPosition.y;
+                    position = this.DraggableObjectCache.anchoredPosition.y;
                     this.newAnchoredPosition = new Vector2(0, delta);
                     Translate();
                     break;
@@ -145,7 +153,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
         if (this.startPosition <= position)
         {
-            this.transformPosition = Position.Finish;
+            this.transformPosition = Position.End;
             this.onUp.Invoke();
         }
 
@@ -163,16 +171,16 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         switch (this.movement)
         {
             case MovementType.Horizontal:
-                this.newAnchoredPosition.x = ClampPosition(this.ObjectToDrag.anchoredPosition.x + this.newAnchoredPosition.x);
-                this.newAnchoredPosition.y = this.ObjectToDrag.anchoredPosition.y;
+                this.newAnchoredPosition.x = ClampPosition(this.DraggableObjectCache.anchoredPosition.x + this.newAnchoredPosition.x);
+                this.newAnchoredPosition.y = this.DraggableObjectCache.anchoredPosition.y;
                 break;
             case MovementType.Vertical:
-                this.newAnchoredPosition.x = this.ObjectToDrag.anchoredPosition.x;
-                this.newAnchoredPosition.y = ClampPosition(this.ObjectToDrag.anchoredPosition.y + this.newAnchoredPosition.y);
+                this.newAnchoredPosition.x = this.DraggableObjectCache.anchoredPosition.x;
+                this.newAnchoredPosition.y = ClampPosition(this.DraggableObjectCache.anchoredPosition.y + this.newAnchoredPosition.y);
                 break;
         }
 
-        this.ObjectToDrag.anchoredPosition = this.newAnchoredPosition;
+        this.DraggableObjectCache.anchoredPosition = this.newAnchoredPosition;
     }
 
     private float ClampPosition(float currentPosition)
@@ -181,38 +189,38 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
     }
 
     [ContextMenu("Move to start position")]
-    public void MoveToStart()
+    private void MoveToStart()
     {
         switch (this.movement)
         {
             case MovementType.Horizontal:
                 this.newAnchoredPosition.x = this.startPosition;
-                this.newAnchoredPosition.y = this.ObjectToDrag.anchoredPosition.y;
+                this.newAnchoredPosition.y = this.DraggableObjectCache.anchoredPosition.y;
                 break;
             case MovementType.Vertical:
-                this.newAnchoredPosition.x = this.ObjectToDrag.anchoredPosition.x;
+                this.newAnchoredPosition.x = this.DraggableObjectCache.anchoredPosition.x;
                 this.newAnchoredPosition.y = this.startPosition;
                 break;
         }
 
-        this.ObjectToDrag.anchoredPosition = this.newAnchoredPosition;
+        this.DraggableObjectCache.anchoredPosition = this.newAnchoredPosition;
     }
 
     [ContextMenu("Move to finish position")]
-    public void MoveToFinish()
+    private void MoveToFinish()
     {
         switch (this.movement)
         {
             case MovementType.Horizontal:
                 this.newAnchoredPosition.x = this.finishPosition;
-                this.newAnchoredPosition.y = this.ObjectToDrag.anchoredPosition.y;
+                this.newAnchoredPosition.y = this.DraggableObjectCache.anchoredPosition.y;
                 break;
             case MovementType.Vertical:
-                this.newAnchoredPosition.x = this.ObjectToDrag.anchoredPosition.x;
+                this.newAnchoredPosition.x = this.DraggableObjectCache.anchoredPosition.x;
                 this.newAnchoredPosition.y = this.startPosition;
                 break;
         }
 
-        this.ObjectToDrag.anchoredPosition = this.newAnchoredPosition;
+        this.DraggableObjectCache.anchoredPosition = this.newAnchoredPosition;
     }
 }
