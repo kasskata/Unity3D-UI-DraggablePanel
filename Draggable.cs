@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -10,31 +11,36 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         Horizontal, Vertical
     }
 
-    public enum Position
+    public enum DirectionType
     {
         Start, End
     }
 
-    [Header("Translate type")]
-    public MovementType movement;
+    private readonly Vector2 UpRight = Vector2.up + Vector2.right;
+    private readonly Vector2 DownLeft = Vector2.down + Vector2.left;
+
+    [Space(5)]
+    public MovementType direction;
     public float inertiaFactor;
 
     [Space(5)]
-    [Header("Borders")]
+    [HideInInspector]
     public float startPosition;
+
+    [HideInInspector]
     public float endPosition;
 
-    [Space(5)]
     [HideInInspector]
-    public Position positionStay;
+    public DirectionType currentDirection;
 
     [Space(5)]
-    public UnityEvent onReverseFinish;
-    public UnityEvent onForwardFinish;
+    public UnityEvent onStart;
+    public UnityEvent onEnd;
 
-    private RectTransform draggableObjectCache;
-    private float lastDelta;
+    //Prevent OnClick event when drag.
     private bool isDragging;
+    private RectTransform draggableObjectCache;
+    private Vector2 lastDelta;
     private Vector2 newDragPosition;
 
     public RectTransform DraggableObjectCache
@@ -53,7 +59,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
     public void OnBeginDrag(PointerEventData eventData)
     {
         this.isDragging = true;
-        this.lastDelta = 0;
+        this.lastDelta = Vector2.zero;
     }
 
     public void OnDrag(PointerEventData eventData)
@@ -61,15 +67,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         this.newDragPosition = eventData.delta;
         Translate();
 
-        switch (this.movement)
-        {
-            case MovementType.Horizontal:
-                this.lastDelta = eventData.delta.x;
-                break;
-            case MovementType.Vertical:
-                this.lastDelta = eventData.delta.y;
-                break;
-        }
+        this.lastDelta = eventData.delta;
     }
 
     public void OnEndDrag(PointerEventData eventData)
@@ -78,42 +76,41 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         StartCoroutine(InertiaComplete());
     }
 
-    public void GoReverse(float power = 0.5f)
+    public void GoReverse()
     {
         if (this.isDragging)
         {
             return;
         }
 
-        this.inertiaFactor = power;
+        this.lastDelta = this.DownLeft;
         StartCoroutine(InertiaComplete());
     }
 
-    public void GoForward(float power = 0.5f)
+    public void GoForward()
     {
         if (this.isDragging)
         {
             return;
         }
 
-        this.inertiaFactor = -power;
+        this.lastDelta = this.UpRight;
         StartCoroutine(InertiaComplete());
     }
 
     public void Switch()
     {
-        //Prevent double call when release pointer
         if (this.isDragging)
         {
             return;
         }
 
-        switch (this.positionStay)
+        switch (this.currentDirection)
         {
-            case Position.End:
+            case DirectionType.End:
                 GoReverse();
                 break;
-            case Position.Start:
+            case DirectionType.Start:
                 GoForward();
                 break;
         }
@@ -121,54 +118,44 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
     private IEnumerator InertiaComplete()
     {
-        if (this.isDragging)
-        {
-            yield break;
-        }
+        float position;
 
-        float position = 0;
+        Vector2 signXY = new Vector2(Mathf.Sign(this.lastDelta.x), Mathf.Sign(this.lastDelta.y));
 
         do
         {
-            float delta = Mathf.Sign(this.lastDelta) >= 0 ?
-                this.lastDelta += this.inertiaFactor :
-                this.lastDelta -= this.inertiaFactor;
+            this.lastDelta.x = signXY.x >= 0 ? this.lastDelta.x += this.inertiaFactor : this.lastDelta.x -= this.inertiaFactor;
+            this.lastDelta.y = signXY.y >= 0 ? this.lastDelta.y += this.inertiaFactor : this.lastDelta.y -= this.inertiaFactor;
 
-
-            switch (this.movement)
-            {
-                case MovementType.Horizontal:
-                    position = this.DraggableObjectCache.anchoredPosition.x;
-                    this.newDragPosition = new Vector2(delta, 0);
-                    break;
-                case MovementType.Vertical:
-                    position = this.DraggableObjectCache.anchoredPosition.y;
-                    this.newDragPosition = new Vector2(0, delta);
-                    break;
-            }
-
+            this.newDragPosition = this.lastDelta;
             Translate();
+
             yield return new WaitForEndOfFrame();
+            position = this.direction == MovementType.Horizontal
+                ? this.draggableObjectCache.anchoredPosition.x
+                : this.draggableObjectCache.anchoredPosition.y;
         } while (this.startPosition < position && position < this.endPosition);
 
         if (this.startPosition <= position)
         {
-            this.positionStay = Position.Start;
-            this.onReverseFinish.Invoke();
+            MoveToStart();
+            this.currentDirection = DirectionType.Start;
+            this.onStart.Invoke();
         }
 
         if (position >= this.endPosition)
         {
-            this.positionStay = Position.End;
-            this.onForwardFinish.Invoke();
+            MoveToEnd();
+            this.currentDirection = DirectionType.End;
+            this.onEnd.Invoke();
         }
 
-        this.lastDelta = 0;
+        this.lastDelta = Vector2.zero;
     }
 
     private void Translate()
     {
-        switch (this.movement)
+        switch (this.direction)
         {
             case MovementType.Horizontal:
                 this.newDragPosition.x = ClampPosition(this.DraggableObjectCache.anchoredPosition.x + this.newDragPosition.x);
@@ -185,20 +172,13 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
     private float ClampPosition(float currentPosition)
     {
-        if (this.startPosition < this.endPosition)
-        {
-            return Mathf.Clamp(currentPosition, this.startPosition, this.endPosition);
-        }
-        else
-        {
-            return Mathf.Clamp(currentPosition, this.endPosition, this.startPosition);
-        }
+        return Mathf.Clamp(currentPosition, this.startPosition, this.endPosition);
     }
 
-    [ContextMenu("Move to start position")]
+    [ContextMenu("Move to Bottom/Left position")]
     private void MoveToStart()
     {
-        switch (this.movement)
+        switch (this.direction)
         {
             case MovementType.Horizontal:
                 this.newDragPosition.x = this.startPosition;
@@ -213,10 +193,10 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         this.DraggableObjectCache.anchoredPosition = this.newDragPosition;
     }
 
-    [ContextMenu("Move to finish position")]
-    private void MoveToFinish()
+    [ContextMenu("Move to Top/Right position")]
+    private void MoveToEnd()
     {
-        switch (this.movement)
+        switch (this.direction)
         {
             case MovementType.Horizontal:
                 this.newDragPosition.x = this.endPosition;
@@ -230,5 +210,39 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
         this.DraggableObjectCache.anchoredPosition = this.newDragPosition;
     }
+}
 
+[CustomEditor(typeof(Draggable))]
+public class DraggableEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        DrawPropertiesExcluding(this.serializedObject, "m_Script", "onEnd", "onStart");
+
+        Draggable draggableScript = (Draggable)this.target;
+        switch (draggableScript.direction)
+        {
+            case Draggable.MovementType.Horizontal:
+                GUILayout.BeginHorizontal("Borders", GUILayout.MaxHeight(40f));
+                EditorGUILayout.LabelField("Left", GUILayout.MaxWidth(50f));
+                draggableScript.startPosition = EditorGUILayout.FloatField(draggableScript.startPosition);
+                EditorGUILayout.LabelField("Right", GUILayout.MaxWidth(60f));
+                draggableScript.endPosition = EditorGUILayout.FloatField(draggableScript.endPosition);
+                GUILayout.EndHorizontal();
+                break;
+            case Draggable.MovementType.Vertical:
+                GUILayout.BeginHorizontal("Borders1", GUILayout.MaxHeight(40f));
+                EditorGUILayout.LabelField("Top", GUILayout.MaxWidth(50f));
+                draggableScript.endPosition = EditorGUILayout.FloatField(draggableScript.endPosition);
+                EditorGUILayout.LabelField("Bottom", GUILayout.MaxWidth(60f));
+                draggableScript.startPosition = EditorGUILayout.FloatField(draggableScript.startPosition);
+                GUILayout.EndHorizontal();
+                break;
+        }
+
+        EditorGUILayout.PropertyField(this.serializedObject.FindProperty("onStart"), true);
+        EditorGUILayout.PropertyField(this.serializedObject.FindProperty("onEnd"), true);
+
+        this.serializedObject.ApplyModifiedProperties();
+    }
 }
