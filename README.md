@@ -11,3 +11,5 @@ Can drag easy and fast RectTransform with this component.
 ![alt tag](https://i.gyazo.com/3f90042ead470bb7338f9e668a3930e6.gif)
 
 ### If you like it, star it :)
+
+Note: now work properly only Left to Right and Bottom to Top. Still work on it.
