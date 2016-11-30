@@ -1,9 +1,13 @@
 ﻿using System.Collections;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
+[RequireComponent(typeof(Image))]
 public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     public enum MovementType
@@ -11,7 +15,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         Horizontal, Vertical
     }
 
-    public enum DirectionType
+    public enum State
     {
         Start, End
     }
@@ -21,6 +25,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
     [Space(5)]
     public MovementType direction;
+    public State state;
     public float inertiaFactor;
 
     [Space(5)]
@@ -29,9 +34,6 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
     [HideInInspector]
     public float endPosition;
-
-    [HideInInspector]
-    public DirectionType currentDirection;
 
     [Space(5)]
     public UnityEvent onStart;
@@ -76,17 +78,6 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         StartCoroutine(InertiaComplete());
     }
 
-    public void GoReverse()
-    {
-        if (this.isDragging)
-        {
-            return;
-        }
-
-        this.lastDelta = this.DownLeft;
-        StartCoroutine(InertiaComplete());
-    }
-
     public void GoForward()
     {
         if (this.isDragging)
@@ -94,9 +85,27 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
             return;
         }
 
-        this.lastDelta = this.UpRight;
-        StartCoroutine(InertiaComplete());
+        if (this.state == State.Start)
+        {
+            this.lastDelta = this.UpRight;
+            StartCoroutine(InertiaComplete());
+        }
     }
+
+    public void GoReverse()
+    {
+        if (this.isDragging)
+        {
+            return;
+        }
+
+        if (this.state == State.End)
+        {
+            this.lastDelta = this.DownLeft;
+            StartCoroutine(InertiaComplete());
+        }
+    }
+
 
     public void Switch()
     {
@@ -105,13 +114,13 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
             return;
         }
 
-        switch (this.currentDirection)
+        switch (this.state)
         {
-            case DirectionType.End:
-                GoReverse();
-                break;
-            case DirectionType.Start:
+            case State.Start:
                 GoForward();
+                break;
+            case State.End:
+                GoReverse();
                 break;
         }
     }
@@ -136,20 +145,21 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
                 : this.draggableObjectCache.anchoredPosition.y;
         } while (this.startPosition < position && position < this.endPosition);
 
-        if (this.startPosition <= position)
+        if (this.startPosition <= position && this.state != State.Start)
         {
             MoveToStart();
-            this.currentDirection = DirectionType.Start;
+            this.state = State.Start;
             this.onStart.Invoke();
         }
 
-        if (position >= this.endPosition)
+        if (position >= this.endPosition && this.state != State.End)
         {
             MoveToEnd();
-            this.currentDirection = DirectionType.End;
+            this.state = State.End;
             this.onEnd.Invoke();
         }
 
+        Debug.Log(this.state);
         this.lastDelta = Vector2.zero;
     }
 
@@ -175,7 +185,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         return Mathf.Clamp(currentPosition, this.startPosition, this.endPosition);
     }
 
-    [ContextMenu("Move to Bottom/Left position")]
+    [ContextMenu("Move to Bottom Or Left position")]
     private void MoveToStart()
     {
         switch (this.direction)
@@ -193,7 +203,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         this.DraggableObjectCache.anchoredPosition = this.newDragPosition;
     }
 
-    [ContextMenu("Move to Top/Right position")]
+    [ContextMenu("Move to Top Or Right position")]
     private void MoveToEnd()
     {
         switch (this.direction)
@@ -212,12 +222,13 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
     }
 }
 
+#if UNITY_EDITOR
 [CustomEditor(typeof(Draggable))]
 public class DraggableEditor : Editor
 {
     public override void OnInspectorGUI()
     {
-        DrawPropertiesExcluding(this.serializedObject, "m_Script", "onEnd", "onStart");
+        DrawPropertiesExcluding(this.serializedObject, "m_Script", "onStart", "onEnd");
 
         Draggable draggableScript = (Draggable)this.target;
         switch (draggableScript.direction)
@@ -231,7 +242,7 @@ public class DraggableEditor : Editor
                 GUILayout.EndHorizontal();
                 break;
             case Draggable.MovementType.Vertical:
-                GUILayout.BeginHorizontal("Borders1", GUILayout.MaxHeight(40f));
+                GUILayout.BeginHorizontal("Borders", GUILayout.MaxHeight(40f));
                 EditorGUILayout.LabelField("Top", GUILayout.MaxWidth(50f));
                 draggableScript.endPosition = EditorGUILayout.FloatField(draggableScript.endPosition);
                 EditorGUILayout.LabelField("Bottom", GUILayout.MaxWidth(60f));
@@ -246,3 +257,4 @@ public class DraggableEditor : Editor
         this.serializedObject.ApplyModifiedProperties();
     }
 }
+#endif
